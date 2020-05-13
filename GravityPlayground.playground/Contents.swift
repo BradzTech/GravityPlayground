@@ -8,51 +8,106 @@
 import PlaygroundSupport
 import SpriteKit
 
-public class GameScene: SKScene {
+public class TappableNode: SKNode {
+    private var velocityPreDrag: CGVector?
+    private var wasDynamic: Bool?
     
-    public override func didMove(to view: SKView) {
+    public func pauseVelocity() {
+        if let physics = physicsBody {
+            velocityPreDrag = physics.velocity
+            wasDynamic = physics.isDynamic
+            physics.isDynamic = false
+        }
     }
     
-    public func makePlanet(position: CGPoint, mass: Float) -> SKNode {
+    public func tweakPosition(fromPoint: CGPoint, toPoint: CGPoint) {
+        if velocityPreDrag != nil {
+            position = CGPoint(x: toPoint.x - fromPoint.x + position.x, y: toPoint.y - fromPoint.y + position.y)
+        }
+    }
+    
+    public func resumeVelocity() {
+        if let physics = physicsBody,
+            let prevDynamic = wasDynamic,
+            let prevVelocity = velocityPreDrag {
+            physics.isDynamic = prevDynamic
+            physics.velocity = prevVelocity
+            velocityPreDrag = nil
+            wasDynamic = nil
+        }
+    }
+}
+
+public class Planet: TappableNode {
+    public init(position: CGPoint, mass: Float) {
+        super.init()
+        self.position = position
+        
+        // Choose a random radius for a little variety
         let radius = CGFloat.random(in: 36...52)
+        
+        // Create the shape
+        let shape = SKShapeNode(ellipseOf: CGSize(width: radius * 2, height: radius * 2))
+        shape.fillColor = UIColor.green
+        addChild(shape)
+        
+        // Create the gravity field
         let field = SKFieldNode.radialGravityField()
         field.falloff = 2
         field.strength = mass
         field.position = position
-        let shape = SKShapeNode(ellipseOf: CGSize(width: radius * 2, height: radius * 2))
+        addChild(field)
+        
+        // Create the static physics body
         let physics = SKPhysicsBody(circleOfRadius: radius)
         physics.isDynamic = false
-        shape.physicsBody = physics
-        shape.fillColor = UIColor.green
-        shape.position = CGPoint(x: 0, y: 0)
-        shape.addChild(field)
-        addChild(shape)
-        return shape
+        physicsBody = physics
     }
     
-    public func makeSatellite(position: CGPoint, velocity: CGVector) -> SKNode {
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+public class Satellite: TappableNode {
+    public init(position: CGPoint, velocity: CGVector, scene: SKScene) {
+        super.init()
+        self.position = position
+        
+        // Choose a random radius smaller than Planet
         let radius = CGFloat.random(in: 14...20)
+        
+        // Create the shape
         let shape = SKShapeNode(ellipseOf: CGSize(width: radius * 2, height: radius * 2))
+        shape.fillColor = UIColor.yellow
+        addChild(shape)
+        
+        // Create the particle emitter for orbit tracing
+        if let emitter = SKEmitterNode(fileNamed: "TraceParticle") {
+            emitter.targetNode = scene
+            emitter.particleZPosition = -1
+            addChild(emitter)
+        }
+        
+        // Create the dynamic physics body
         let physics = SKPhysicsBody(circleOfRadius: radius)
         physics.velocity = velocity
         physics.friction = 0
         physics.angularDamping = 0
         physics.linearDamping = 0
         physics.mass = 1
-        shape.physicsBody = physics
-        shape.fillColor = UIColor.yellow
-        shape.position = position
-        addChild(shape)
-        if let emitter = SKEmitterNode(fileNamed: "TraceParticle") {
-            emitter.targetNode = self
-            emitter.particleZPosition = -1
-            shape.addChild(emitter)
-        }
-        return shape
+        physics.allowsRotation = false
+        physicsBody = physics
     }
     
-    public func polarToRect(radius: CGFloat, theta: CGFloat) -> CGPoint {
-        return CGPoint(x: radius, y: 0).applying(CGAffineTransform(rotationAngle: theta))
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+public class GameScene: SKScene {
+    
+    public override func didMove(to view: SKView) {
     }
     
     @objc public static override var supportsSecureCoding: Bool {
@@ -63,29 +118,40 @@ public class GameScene: SKScene {
         }
     }
     
-    func touchDown(atPoint pos : CGPoint) {
-        self.nodes(at: pos)
-        /*guard let n = spinnyNode.copy() as? SKShapeNode else { return }
-        
-        n.position = pos
-        n.strokeColor = SKColor.green
-        addChild(n)*/
+    public func makePlanet(position: CGPoint, mass: Float) -> SKNode {
+        let planet = Planet(position: position, mass: mass)
+        addChild(planet)
+        return planet
     }
     
-    func touchMoved(toPoint pos : CGPoint) {
-        /*guard let n = self.spinnyNode.copy() as? SKShapeNode else { return }
-        
-        n.position = pos
-        n.strokeColor = SKColor.blue
-        addChild(n)*/
+    public func makeSatellite(position: CGPoint, velocity: CGVector) -> SKNode {
+        let satellite = Satellite(position: position, velocity: velocity, scene: self)
+        addChild(satellite)
+        return satellite
     }
     
-    func touchUp(atPoint pos : CGPoint) {
-        /*guard let n = spinnyNode.copy() as? SKShapeNode else { return }
-        
-        n.position = pos
-        n.strokeColor = SKColor.red
-        addChild(n)*/
+    private func touchDown(atPoint pos: CGPoint) {
+        if let tapped = self.nodes(at: pos).filter({(node) in
+            node is SKShapeNode && node.parent is TappableNode
+        }).first?.parent as? TappableNode {
+            tapped.pauseVelocity()
+        }
+    }
+    
+    private func touchMoved(fromPoint: CGPoint, toPoint: CGPoint) {
+        self.nodes(at: fromPoint).forEach({(node) in
+            if let tapped = node as? TappableNode {
+                tapped.tweakPosition(fromPoint: fromPoint, toPoint: toPoint)
+            }
+        })
+    }
+    
+    private func touchUp(atPoint pos: CGPoint) {
+        if let tapped = self.nodes(at: pos).filter({(node) in
+            node is SKShapeNode && node.parent is TappableNode
+        }).first?.parent as? TappableNode {
+            tapped.resumeVelocity()
+        }
     }
     
     public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -93,7 +159,7 @@ public class GameScene: SKScene {
     }
     
     public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        for t in touches { touchMoved(toPoint: t.location(in: self)) }
+        for t in touches { touchMoved(fromPoint: t.previousLocation(in: self), toPoint: t.location(in: self)) }
     }
     
     public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
