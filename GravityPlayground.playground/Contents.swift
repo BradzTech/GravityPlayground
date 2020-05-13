@@ -1,20 +1,20 @@
-//: A SpriteKit based Playground
+/*:
+ # GravityPlayground
+ 
+ Welcome to a playground of gravity!
+ */
 
+//#-hidden-code
 import PlaygroundSupport
 import SpriteKit
 
-class GameScene: SKScene {
+public class GameScene: SKScene {
     
-    var dynamicNode: SKNode!
-    
-    override func didMove(to view: SKView) {
-        let staticNode = createStaticNode(radius: 40, position: CGPoint(x: 0, y: 0), mass: 1)
-        addChild(staticNode)
-        dynamicNode = createDynamicNode(radius: 15, position: CGPoint(x: 0, y: 300), velocity: CGVector(dx: 150 / sqrt(2), dy: 0))
-        addChild(dynamicNode)
+    public override func didMove(to view: SKView) {
     }
     
-    func createStaticNode(radius: CGFloat, position: CGPoint, mass: Float) -> SKNode {
+    public func makePlanet(position: CGPoint, mass: Float) -> SKNode {
+        let radius = CGFloat.random(in: 36...52)
         let field = SKFieldNode.radialGravityField()
         field.falloff = 2
         field.strength = mass
@@ -26,10 +26,12 @@ class GameScene: SKScene {
         shape.fillColor = UIColor.green
         shape.position = CGPoint(x: 0, y: 0)
         shape.addChild(field)
+        addChild(shape)
         return shape
     }
     
-    func createDynamicNode(radius: CGFloat, position: CGPoint, velocity: CGVector) -> SKNode {
+    public func makeSatellite(position: CGPoint, velocity: CGVector) -> SKNode {
+        let radius = CGFloat.random(in: 14...20)
         let shape = SKShapeNode(ellipseOf: CGSize(width: radius * 2, height: radius * 2))
         let physics = SKPhysicsBody(circleOfRadius: radius)
         physics.velocity = velocity
@@ -40,10 +42,20 @@ class GameScene: SKScene {
         shape.physicsBody = physics
         shape.fillColor = UIColor.yellow
         shape.position = position
+        addChild(shape)
+        if let emitter = SKEmitterNode(fileNamed: "TraceParticle") {
+            emitter.targetNode = self
+            emitter.particleZPosition = -1
+            shape.addChild(emitter)
+        }
         return shape
     }
     
-    @objc static override var supportsSecureCoding: Bool {
+    public func polarToRect(radius: CGFloat, theta: CGFloat) -> CGPoint {
+        return CGPoint(x: radius, y: 0).applying(CGAffineTransform(rotationAngle: theta))
+    }
+    
+    @objc public static override var supportsSecureCoding: Bool {
         // SKNode conforms to NSSecureCoding, so any subclass going
         // through the decoding process must support secure coding
         get {
@@ -52,6 +64,7 @@ class GameScene: SKScene {
     }
     
     func touchDown(atPoint pos : CGPoint) {
+        self.nodes(at: pos)
         /*guard let n = spinnyNode.copy() as? SKShapeNode else { return }
         
         n.position = pos
@@ -75,35 +88,40 @@ class GameScene: SKScene {
         addChild(n)*/
     }
     
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+    public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches { touchDown(atPoint: t.location(in: self)) }
     }
     
-    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+    public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches { touchMoved(toPoint: t.location(in: self)) }
     }
     
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+    public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches { touchUp(atPoint: t.location(in: self)) }
     }
     
-    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+    public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches { touchUp(atPoint: t.location(in: self)) }
     }
     
-    override func update(_ currentTime: TimeInterval) {
-        sqrt(dynamicNode.position.x * dynamicNode.position.x + dynamicNode.position.y * dynamicNode.position.y)
+    public override func update(_ currentTime: TimeInterval) {
+        //sqrt(dynamicNode.position.x * dynamicNode.position.x + dynamicNode.position.y * dynamicNode.position.y)
     }
 }
 
-// Load the SKScene from 'GameScene.sks'
 let sceneView = SKView(frame: CGRect(x: 0, y: 0, width: 640, height: 480))
-if let scene = GameScene(fileNamed: "GameScene") {
-    // Set the scale mode to scale to fit the window
-    scene.scaleMode = .aspectFill
-    
-    // Present the scene
-    sceneView.presentScene(scene)
+guard let scene = GameScene(fileNamed: "GameScene") else {
+    exit(1)
 }
-
+scene.scaleMode = .aspectFill
+sceneView.presentScene(scene)
 PlaygroundSupport.PlaygroundPage.current.liveView = sceneView
+//#-end-hidden-code
+
+//#-editable-code
+
+scene.makePlanet(position: CGPoint(x: 0, y: 0), mass: 1)
+scene.makeSatellite(position: CGPoint(x: 0, y: 300), velocity: CGVector(dx: 150 / sqrt(2), dy: 0))
+scene.makeSatellite(position: CGPoint(x: -150, y: 0), velocity: CGVector(dx: 0, dy: 150))
+
+//#-end-editable-code
