@@ -5,28 +5,42 @@ import SpriteKit
 
 class GameScene: SKScene {
     
-    private var label : SKLabelNode!
-    private var spinnyNode : SKShapeNode!
+    var dynamicNode: SKNode!
     
     override func didMove(to view: SKView) {
-        // Get label node from scene and store it for use later
-        label = childNode(withName: "//helloLabel") as? SKLabelNode
-        label.alpha = 0.0
-        let fadeInOut = SKAction.sequence([.fadeIn(withDuration: 2.0),
-                                           .fadeOut(withDuration: 2.0)])
-        label.run(.repeatForever(fadeInOut))
-        
-        // Create shape node to use during mouse interaction
-        let w = (size.width + size.height) * 0.05
-        
-        spinnyNode = SKShapeNode(rectOf: CGSize(width: w, height: w), cornerRadius: w * 0.3)
-        spinnyNode.lineWidth = 2.5
-        
-        let fadeAndRemove = SKAction.sequence([.wait(forDuration: 0.5),
-                                               .fadeOut(withDuration: 0.5),
-                                               .removeFromParent()])
-        spinnyNode.run(.repeatForever(.rotate(byAngle: CGFloat(Double.pi), duration: 1)))
-        spinnyNode.run(fadeAndRemove)
+        let staticNode = createStaticNode(radius: 40, position: CGPoint(x: 0, y: 0), mass: 1)
+        addChild(staticNode)
+        dynamicNode = createDynamicNode(radius: 15, position: CGPoint(x: 0, y: 300), velocity: CGVector(dx: 150 / sqrt(2), dy: 0))
+        addChild(dynamicNode)
+    }
+    
+    func createStaticNode(radius: CGFloat, position: CGPoint, mass: Float) -> SKNode {
+        let field = SKFieldNode.radialGravityField()
+        field.falloff = 2
+        field.strength = mass
+        field.position = position
+        let shape = SKShapeNode(ellipseOf: CGSize(width: radius * 2, height: radius * 2))
+        let physics = SKPhysicsBody(circleOfRadius: radius)
+        physics.isDynamic = false
+        shape.physicsBody = physics
+        shape.fillColor = UIColor.green
+        shape.position = CGPoint(x: 0, y: 0)
+        shape.addChild(field)
+        return shape
+    }
+    
+    func createDynamicNode(radius: CGFloat, position: CGPoint, velocity: CGVector) -> SKNode {
+        let shape = SKShapeNode(ellipseOf: CGSize(width: radius * 2, height: radius * 2))
+        let physics = SKPhysicsBody(circleOfRadius: radius)
+        physics.velocity = velocity
+        physics.friction = 0
+        physics.angularDamping = 0
+        physics.linearDamping = 0
+        physics.mass = 1
+        shape.physicsBody = physics
+        shape.fillColor = UIColor.yellow
+        shape.position = position
+        return shape
     }
     
     @objc static override var supportsSecureCoding: Bool {
@@ -38,27 +52,27 @@ class GameScene: SKScene {
     }
     
     func touchDown(atPoint pos : CGPoint) {
-        guard let n = spinnyNode.copy() as? SKShapeNode else { return }
+        /*guard let n = spinnyNode.copy() as? SKShapeNode else { return }
         
         n.position = pos
         n.strokeColor = SKColor.green
-        addChild(n)
+        addChild(n)*/
     }
     
     func touchMoved(toPoint pos : CGPoint) {
-        guard let n = self.spinnyNode.copy() as? SKShapeNode else { return }
+        /*guard let n = self.spinnyNode.copy() as? SKShapeNode else { return }
         
         n.position = pos
         n.strokeColor = SKColor.blue
-        addChild(n)
+        addChild(n)*/
     }
     
     func touchUp(atPoint pos : CGPoint) {
-        guard let n = spinnyNode.copy() as? SKShapeNode else { return }
+        /*guard let n = spinnyNode.copy() as? SKShapeNode else { return }
         
         n.position = pos
         n.strokeColor = SKColor.red
-        addChild(n)
+        addChild(n)*/
     }
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -78,12 +92,12 @@ class GameScene: SKScene {
     }
     
     override func update(_ currentTime: TimeInterval) {
-        // Called before each frame is rendered
+        sqrt(dynamicNode.position.x * dynamicNode.position.x + dynamicNode.position.y * dynamicNode.position.y)
     }
 }
 
 // Load the SKScene from 'GameScene.sks'
-let sceneView = SKView(frame: CGRect(x:0 , y:0, width: 640, height: 480))
+let sceneView = SKView(frame: CGRect(x: 0, y: 0, width: 640, height: 480))
 if let scene = GameScene(fileNamed: "GameScene") {
     // Set the scale mode to scale to fit the window
     scene.scaleMode = .aspectFill
