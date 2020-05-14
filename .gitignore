@@ -1,0 +1,13 @@
+.DS_Store
+
+# Xcode
+
+## User settings
+xcuserdata/
+
+## Obj-C/Swift specific
+*.hmap
+
+## Playgrounds
+timeline.xctimeline
+playground.xcworkspace
