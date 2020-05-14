@@ -48,18 +48,22 @@ public class Planet: TappableNode {
         self.position = position
         
         // Choose a random radius for a little variety
-        let radius = CGFloat.random(in: 36...52)
+        let radius = CGFloat.random(in: 36...54)
         
         // Create the shape
         let shape = SKShapeNode(ellipseOf: CGSize(width: radius * 2, height: radius * 2))
-        shape.fillColor = UIColor.green
+        shape.fillColor = UIColor.cyan
+        shape.lineWidth = 2
         addChild(shape)
+        shape.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.fadeAlpha(to: 0.75, duration: 1.75),
+            SKAction.fadeAlpha(to: 1.0, duration: 0.75)
+        ])))
         
         // Create the gravity field
         let field = SKFieldNode.radialGravityField()
         field.falloff = 2
         field.strength = mass
-        field.position = position
         addChild(field)
         
         // Create the static physics body
@@ -74,17 +78,27 @@ public class Planet: TappableNode {
 }
 
 public class Satellite: TappableNode {
+    private var labelNode: SKLabelNode!
+    
     public init(position: CGPoint, velocity: CGVector, scene: SKScene) {
         super.init()
         self.position = position
         
         // Choose a random radius smaller than Planet
-        let radius = CGFloat.random(in: 14...20)
+        let radius = CGFloat.random(in: 15...21)
         
         // Create the shape
         let shape = SKShapeNode(ellipseOf: CGSize(width: radius * 2, height: radius * 2))
         shape.fillColor = UIColor.yellow
+        shape.lineWidth = 2
         addChild(shape)
+        
+        // Create the info label
+        labelNode = SKLabelNode()
+        labelNode.fontSize = 22
+        labelNode.color = UIColor(white: 1.0, alpha: 0.36)
+        labelNode.position = CGPoint(x: 0, y: -23 - radius)
+        addChild(labelNode)
         
         // Create the particle emitter for orbit tracing
         if let emitter = SKEmitterNode(fileNamed: "TraceParticle") {
@@ -108,10 +122,15 @@ public class Satellite: TappableNode {
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
+    
+    public func setText(_ newText: String) {
+        labelNode.text = newText
+    }
 }
 
 public class GameScene: SKScene, SKPhysicsContactDelegate {
     private var tappedNode: TappableNode?
+    private var frameCnt: Int = 0
     
     public override func didMove(to view: SKView) {
         physicsWorld.contactDelegate = self
@@ -125,14 +144,14 @@ public class GameScene: SKScene, SKPhysicsContactDelegate {
         }
     }
     
-    public func makePlanet(position: CGPoint, mass: Float) -> SKNode {
-        let planet = Planet(position: position, mass: mass)
+    public func makePlanet(x: CGFloat, y: CGFloat, mass: Float) -> SKNode {
+        let planet = Planet(position: CGPoint(x: x, y: y), mass: mass)
         addChild(planet)
         return planet
     }
     
-    public func makeSatellite(position: CGPoint, velocity: CGVector) -> SKNode {
-        let satellite = Satellite(position: position, velocity: velocity, scene: self)
+    public func makeSatellite(x: CGFloat, y: CGFloat, dx: CGFloat, dy: CGFloat) -> SKNode {
+        let satellite = Satellite(position: CGPoint(x: x, y: y), velocity: CGVector(dx: dx, dy: dy), scene: self)
         addChild(satellite)
         return satellite
     }
@@ -179,8 +198,24 @@ public class GameScene: SKScene, SKPhysicsContactDelegate {
         for t in touches { touchUp(atPoint: t.location(in: self)) }
     }
     
+    public var planets: [Planet] {
+        children.filter({(node) in
+            node is Planet
+        }) as! [Planet]
+    }
+    
+    public var satellites: [Satellite] {
+        children.filter({(node) in
+            node is Satellite
+        }) as! [Satellite]
+    }
+    
     public override func update(_ currentTime: TimeInterval) {
         tappedNode?.updatePosition()
+        self.frameCnt += 1
+        if self.frameCnt % 9 == 1 {
+            quickCheck(scene: self)
+        }
     }
 }
 
@@ -196,8 +231,21 @@ PlaygroundSupport.PlaygroundPage.current.liveView = sceneView
 
 //#-editable-code
 
-scene.makePlanet(position: CGPoint(x: 0, y: 0), mass: 1)
-scene.makeSatellite(position: CGPoint(x: 0, y: 300), velocity: CGVector(dx: 150 / sqrt(2), dy: 0))
-scene.makeSatellite(position: CGPoint(x: -150, y: 0), velocity: CGVector(dx: 0, dy: 150))
+scene.makePlanet(x: 0, y: 0, mass: 1)
+//scene.makePlanet(x: 0, y: 200, mass: 1)
+scene.makeSatellite(x: 0, y: 300, dx: 150 / sqrt(2), dy: 0)
+scene.makeSatellite(x: -150, y: 0, dx: 0, dy: 150)
+
+
+// Optional
+func quickCheck(scene: GameScene) {
+    // Insert any code here you would like to execute several times per second.
+    scene.satellites.forEach({(satellite) in
+        if let velo = satellite.physicsBody?.velocity {
+            let speed = sqrt(velo.dx * velo.dx + velo.dy * velo.dy)
+            satellite.setText(String(format: "%.0f m/s", speed))
+        }
+    })
+}
 
 //#-end-editable-code
