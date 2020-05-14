@@ -9,31 +9,35 @@ import PlaygroundSupport
 import SpriteKit
 
 public class TappableNode: SKNode {
-    private var velocityPreDrag: CGVector?
+    private var targetPos: CGPoint?
     private var wasDynamic: Bool?
     
     public func pauseVelocity() {
         if let physics = physicsBody {
-            velocityPreDrag = physics.velocity
             wasDynamic = physics.isDynamic
+            targetPos = position
             physics.isDynamic = false
         }
     }
     
-    public func tweakPosition(fromPoint: CGPoint, toPoint: CGPoint) {
-        if velocityPreDrag != nil {
-            position = CGPoint(x: toPoint.x - fromPoint.x + position.x, y: toPoint.y - fromPoint.y + position.y)
+    public func retarget(toPosition: CGPoint) {
+        targetPos = toPosition
+    }
+    
+    public func updatePosition() {
+        if let targetPos = targetPos {
+            position = CGPoint(x: position.x + (targetPos.x - position.x) / 20, y: position.y + (targetPos.y - position.y) / 20)
         }
     }
     
     public func resumeVelocity() {
         if let physics = physicsBody,
-            let prevDynamic = wasDynamic,
-            let prevVelocity = velocityPreDrag {
-            physics.isDynamic = prevDynamic
-            physics.velocity = prevVelocity
-            velocityPreDrag = nil
+            let dynamic = wasDynamic,
+            let target = targetPos {
+            physics.isDynamic = dynamic
+            physics.velocity = CGVector(dx: (target.x - position.x) * 2, dy: (target.y - position.y) * 2)
             wasDynamic = nil
+            targetPos = nil
         }
     }
 }
@@ -97,6 +101,7 @@ public class Satellite: TappableNode {
         physics.linearDamping = 0
         physics.mass = 1
         physics.allowsRotation = false
+        physics.contactTestBitMask = physics.collisionBitMask
         physicsBody = physics
     }
     
@@ -105,9 +110,11 @@ public class Satellite: TappableNode {
     }
 }
 
-public class GameScene: SKScene {
+public class GameScene: SKScene, SKPhysicsContactDelegate {
+    private var tappedNode: TappableNode?
     
     public override func didMove(to view: SKView) {
+        physicsWorld.contactDelegate = self
     }
     
     @objc public static override var supportsSecureCoding: Bool {
@@ -135,23 +142,25 @@ public class GameScene: SKScene {
             node is SKShapeNode && node.parent is TappableNode
         }).first?.parent as? TappableNode {
             tapped.pauseVelocity()
+            tappedNode = tapped
         }
     }
     
-    private func touchMoved(fromPoint: CGPoint, toPoint: CGPoint) {
-        self.nodes(at: fromPoint).forEach({(node) in
-            if let tapped = node as? TappableNode {
-                tapped.tweakPosition(fromPoint: fromPoint, toPoint: toPoint)
-            }
-        })
+    private func touchMoved(toPoint pos: CGPoint) {
+        tappedNode?.retarget(toPosition: pos)
     }
     
     private func touchUp(atPoint pos: CGPoint) {
-        if let tapped = self.nodes(at: pos).filter({(node) in
-            node is SKShapeNode && node.parent is TappableNode
-        }).first?.parent as? TappableNode {
-            tapped.resumeVelocity()
-        }
+        tappedNode?.resumeVelocity()
+        tappedNode = nil
+    }
+    
+    public func didBegin(_ contact: SKPhysicsContact) {
+        [contact.bodyA, contact.bodyB].forEach({(body) in
+            if body.isDynamic {
+                body.velocity = CGVector.zero
+            }
+        })
     }
     
     public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -159,7 +168,7 @@ public class GameScene: SKScene {
     }
     
     public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        for t in touches { touchMoved(fromPoint: t.previousLocation(in: self), toPoint: t.location(in: self)) }
+        for t in touches { touchMoved(toPoint: t.location(in: self)) }
     }
     
     public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -171,7 +180,7 @@ public class GameScene: SKScene {
     }
     
     public override func update(_ currentTime: TimeInterval) {
-        //sqrt(dynamicNode.position.x * dynamicNode.position.x + dynamicNode.position.y * dynamicNode.position.y)
+        tappedNode?.updatePosition()
     }
 }
 
@@ -180,6 +189,7 @@ guard let scene = GameScene(fileNamed: "GameScene") else {
     exit(1)
 }
 scene.scaleMode = .aspectFill
+sceneView.isMultipleTouchEnabled = false
 sceneView.presentScene(scene)
 PlaygroundSupport.PlaygroundPage.current.liveView = sceneView
 //#-end-hidden-code
