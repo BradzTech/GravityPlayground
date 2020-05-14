@@ -1,7 +1,50 @@
 /*:
  # GravityPlayground
  
- Welcome to a playground of gravity!
+ You probably know gravity by the phenomena that keeps us pulled down to the ground.
+ But if you change your perspective, it is responsible for much more in our universe.
+ In this Playground, we will deal with how gravity enables satellites to orbit around
+ a planet.
+ 
+ ## Your Task
+ Your task is to create a satellite and put it in circular orbit around a central planet.
+ Understanding the mathematical equations behind gravity will help you.
+ 
+ For an object to move in a circular fashion, it must have a centripetal force
+ compelling it to do so. a = (v^2)/r
+ 
+ According to Newton's Unversal Law of Gravitation our centripetal gravitational
+ force will be: a = Gm/(r^2)
+ 
+ By setting these equations equal to each other: v^2 = Gm/r, or v  = sqrt(Gm/r).
+ 
+ ## Relevant functions and parameters
+ 
+ `scene.makePlanet`
+ * `x`: horiztonal offset from screen center in meters
+ * `y`: vertical offset from screen center in meters
+ * `mass`: the mass in kg, which determines the gravity strength
+ * `radius` (optional): a custom radius of this planet in meters
+ 
+ `scene.makeSatellite`
+ * `x`: horiztonal offset from screen center in meters
+ * `y`: vertical offset from screen center in meters
+ * `dx`: horizontal initial velocity in m/s
+ * `dy`: vertical initial velocity in m/s
+ * `radius` (optional): a custom radius of this planet in meters
+ 
+ ## Bonus Tasks
+ Once you successfully create a circular orbit, you can continue experimenting with
+ gravity by adding more planets and/or satellites and modifying their properties.
+ Here are some ideas:
+ 
+ * Try purposely creating a satellite with an elliptical orbit; this is more complex but
+ represents how the Earth orbits the sun.
+ 
+ * Try placing two planets at (-100, 0) and (100, 0); then create a satellite at (0, 200).
+ 
+ * You can try dragging around planets and satellites as well to see how they react,
+ though doing so is less precise than through code!
  */
 
 //#-hidden-code
@@ -9,6 +52,7 @@ import PlaygroundSupport
 import SpriteKit
 
 public class TappableNode: SKNode {
+    private static let dragSpeed: CGFloat = 0.05
     private var targetPos: CGPoint?
     private var wasDynamic: Bool?
     
@@ -26,7 +70,8 @@ public class TappableNode: SKNode {
     
     public func updatePosition() {
         if let targetPos = targetPos {
-            position = CGPoint(x: position.x + (targetPos.x - position.x) / 20, y: position.y + (targetPos.y - position.y) / 20)
+            // Every frame, get 5% closer to target
+            position = CGPoint(x: position.x + (targetPos.x - position.x) * TappableNode.dragSpeed, y: position.y + (targetPos.y - position.y) * TappableNode.dragSpeed)
         }
     }
     
@@ -40,15 +85,25 @@ public class TappableNode: SKNode {
             targetPos = nil
         }
     }
+    
+    public var velocityString: String {
+        if let velo = physicsBody?.velocity {
+            let speed = sqrt(velo.dx * velo.dx + velo.dy * velo.dy)
+            if speed >= 1 {
+                return String(format: "%.0f m/s", speed)
+            }
+        }
+        return ""
+    }
 }
 
 public class Planet: TappableNode {
-    public init(position: CGPoint, mass: Float) {
+    public init(position: CGPoint, mass: Double, radius: Double?) {
         super.init()
         self.position = position
         
-        // Choose a random radius for a little variety
-        let radius = CGFloat.random(in: 36...54)
+        // Used customized radius or default
+        let radius = radius ?? 50
         
         // Create the shape
         let shape = SKShapeNode(ellipseOf: CGSize(width: radius * 2, height: radius * 2))
@@ -63,11 +118,11 @@ public class Planet: TappableNode {
         // Create the gravity field
         let field = SKFieldNode.radialGravityField()
         field.falloff = 2
-        field.strength = mass
+        field.strength = Float(mass)
         addChild(field)
         
         // Create the static physics body
-        let physics = SKPhysicsBody(circleOfRadius: radius)
+        let physics = SKPhysicsBody(circleOfRadius: CGFloat(radius))
         physics.isDynamic = false
         physicsBody = physics
     }
@@ -80,12 +135,12 @@ public class Planet: TappableNode {
 public class Satellite: TappableNode {
     private var labelNode: SKLabelNode!
     
-    public init(position: CGPoint, velocity: CGVector, scene: SKScene) {
+    public init(position: CGPoint, velocity: CGVector, scene: SKScene, radius: Double?) {
         super.init()
         self.position = position
         
-        // Choose a random radius smaller than Planet
-        let radius = CGFloat.random(in: 15...21)
+        // Choose a random radius for a little variety
+        let radius = radius ?? Double.random(in: 15...22)
         
         // Create the shape
         let shape = SKShapeNode(ellipseOf: CGSize(width: radius * 2, height: radius * 2))
@@ -96,8 +151,8 @@ public class Satellite: TappableNode {
         // Create the info label
         labelNode = SKLabelNode()
         labelNode.fontSize = 22
-        labelNode.color = UIColor(white: 1.0, alpha: 0.36)
-        labelNode.position = CGPoint(x: 0, y: -23 - radius)
+        labelNode.color = UIColor(white: 1.0, alpha: 0.35)
+        labelNode.position = CGPoint(x: 0, y: -22 - radius)
         addChild(labelNode)
         
         // Create the particle emitter for orbit tracing
@@ -108,12 +163,13 @@ public class Satellite: TappableNode {
         }
         
         // Create the dynamic physics body
-        let physics = SKPhysicsBody(circleOfRadius: radius)
+        let physics = SKPhysicsBody(circleOfRadius: CGFloat(radius))
         physics.velocity = velocity
         physics.friction = 0
         physics.angularDamping = 0
         physics.linearDamping = 0
         physics.mass = 1
+        physics.restitution = 0.6
         physics.allowsRotation = false
         physics.contactTestBitMask = physics.collisionBitMask
         physicsBody = physics
@@ -129,8 +185,34 @@ public class Satellite: TappableNode {
 }
 
 public class GameScene: SKScene, SKPhysicsContactDelegate {
+    /**
+     The Universal Gravitational Constant G
+     */
+    private static let gravitationConstant: Double = 6.674e-11
+    
+    // Non-nil if a node is currently being dragged
     private var tappedNode: TappableNode?
+    
+    // Count of rendered frames to execute only every x frames
     private var frameCnt: Int = 0
+    
+    // Mutable private lists of Planets and Satellites
+    private var _planets = [Planet]()
+    private var _satellites = [Satellite]()
+    
+    /**
+     The list of created Planets
+     */
+    public var planets: [Planet] {
+        _planets
+    }
+    
+    /**
+     The list of created Satellites
+     */
+    public var satellites: [Satellite] {
+        _satellites
+    }
     
     public override func didMove(to view: SKView) {
         physicsWorld.contactDelegate = self
@@ -144,17 +226,36 @@ public class GameScene: SKScene, SKPhysicsContactDelegate {
         }
     }
     
-    public func makePlanet(x: CGFloat, y: CGFloat, mass: Float) -> SKNode {
-        let planet = Planet(position: CGPoint(x: x, y: y), mass: mass)
+    /**
+     Add and return a Planet at position (x, y) m and mass in kg.
+     */
+    public func makePlanet(x: Double, y: Double, mass: Double, radius: Double? = nil) -> SKNode {
+        let planet = Planet(position: CGPoint(x: x, y: y), mass: mass * GameScene.gravitationConstant / pow(150, 3), radius: radius)
         addChild(planet)
+        _planets.append(planet)
         return planet
     }
     
-    public func makeSatellite(x: CGFloat, y: CGFloat, dx: CGFloat, dy: CGFloat) -> SKNode {
-        let satellite = Satellite(position: CGPoint(x: x, y: y), velocity: CGVector(dx: dx, dy: dy), scene: self)
+    /**
+     Add and return a Satellite at position (x, y) m and initial velocity (dx, dy) m/s.
+     */
+    public func makeSatellite(x: Double, y: Double, dx: Double, dy: Double, radius: Double? = nil) -> SKNode {
+        let satellite = Satellite(position: CGPoint(x: x, y: y), velocity: CGVector(dx: dx, dy: dy), scene: self, radius: radius)
         addChild(satellite)
+        _satellites.append(satellite)
         return satellite
     }
+    
+    // MARK: SKPhysicsContactDelegate
+    
+    public func didBegin(_ contact: SKPhysicsContact) {
+        if let _ = (contact.bodyA.node as? Planet) ?? (contact.bodyB.node as? Planet),
+            let satellite = (contact.bodyA.node as? Satellite) ?? (contact.bodyB.node as? Satellite) {
+            satellite.physicsBody?.velocity = CGVector.zero
+        }
+    }
+    
+    // MARK: Touch handling
     
     private func touchDown(atPoint pos: CGPoint) {
         if let tapped = self.nodes(at: pos).filter({(node) in
@@ -174,14 +275,6 @@ public class GameScene: SKScene, SKPhysicsContactDelegate {
         tappedNode = nil
     }
     
-    public func didBegin(_ contact: SKPhysicsContact) {
-        [contact.bodyA, contact.bodyB].forEach({(body) in
-            if body.isDynamic {
-                body.velocity = CGVector.zero
-            }
-        })
-    }
-    
     public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches { touchDown(atPoint: t.location(in: self)) }
     }
@@ -196,18 +289,6 @@ public class GameScene: SKScene, SKPhysicsContactDelegate {
     
     public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches { touchUp(atPoint: t.location(in: self)) }
-    }
-    
-    public var planets: [Planet] {
-        children.filter({(node) in
-            node is Planet
-        }) as! [Planet]
-    }
-    
-    public var satellites: [Satellite] {
-        children.filter({(node) in
-            node is Satellite
-        }) as! [Satellite]
     }
     
     public override func update(_ currentTime: TimeInterval) {
@@ -231,21 +312,19 @@ PlaygroundSupport.PlaygroundPage.current.liveView = sceneView
 
 //#-editable-code
 
-scene.makePlanet(x: 0, y: 0, mass: 1)
-//scene.makePlanet(x: 0, y: 200, mass: 1)
-scene.makeSatellite(x: 0, y: 300, dx: 150 / sqrt(2), dy: 0)
-scene.makeSatellite(x: -150, y: 0, dx: 0, dy: 150)
+scene.makePlanet(x: 0, y: 0, mass: 1.49835181e16)
 
+scene.makeSatellite(x: 0, y: 200, dx: <#horizontal speed of satellite#>, dy: 0)
 
-// Optional
-func quickCheck(scene: GameScene) {
-    // Insert any code here you would like to execute several times per second.
-    scene.satellites.forEach({(satellite) in
-        if let velo = satellite.physicsBody?.velocity {
-            let speed = sqrt(velo.dx * velo.dx + velo.dy * velo.dy)
-            satellite.setText(String(format: "%.0f m/s", speed))
-        }
-    })
-}
 
 //#-end-editable-code
+
+// Optional: any code in this function will be executed several
+// times per second for real-time updates.
+func quickCheck(scene: GameScene) {
+    //#-editable-code
+    scene.satellites.forEach({(satellite) in
+        satellite.setText(satellite.velocityString)
+    })
+    //#-end-editable-code
+}
