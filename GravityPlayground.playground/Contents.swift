@@ -59,7 +59,7 @@
  * Try placing two planets at (-100, 0) and (100, 0); then create a satellite at (0, 200).
  
  * Place several satellites around one central planet with different orbits without making
- them collide. Design your own solar system!
+ them collide. Design your own satellite system!
  
  * You can try dragging around planets and satellites as well to see how they react,
  though doing so is less precise than through code!
@@ -152,14 +152,16 @@ public class Planet: TappableNode {
         // Used customized radius or default
         let radius = radius ?? 48
         
-        // Create the shape
-        let shape = SKShapeNode(ellipseOf: CGSize(width: radius * 2, height: radius * 2))
-        shape.fillColor = UIColor.cyan
-        shape.lineWidth = 2
-        addChild(shape)
-        shape.run(SKAction.repeatForever(SKAction.sequence([
-            SKAction.fadeAlpha(to: 0.75, duration: 1.75),
-            SKAction.fadeAlpha(to: 1.0, duration: 0.75)
+        // Create the sprite
+        let size = CGSize(width: radius * 2, height: radius * 2)
+        let sprite = SKSpriteNode(texture: SKTexture(imageNamed: "earth.png"), size: size)
+        addChild(sprite)
+        
+        // Create an oscillating color effect
+        sprite.color = UIColor.blue
+        sprite.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.colorize(withColorBlendFactor: 0.2, duration: 1.75),
+            SKAction.colorize(withColorBlendFactor: 0, duration: 1)
         ])))
         
         // Create the gravity field
@@ -197,11 +199,10 @@ public class Satellite: TappableNode {
         // Choose a random radius for a little variety
         let radius = radius ?? Double.random(in: 13...21)
         
-        // Create the shape
-        let shape = SKShapeNode(ellipseOf: CGSize(width: radius * 2, height: radius * 2))
-        shape.fillColor = UIColor.yellow
-        shape.lineWidth = 2
-        addChild(shape)
+        // Create the sprite
+        let size = CGSize(width: radius * 2, height: radius * 2)
+        let sprite = SKSpriteNode(texture: SKTexture(imageNamed: "moon.png"), size: size)
+        addChild(sprite)
         
         // Create the info label
         labelNode = SKLabelNode()
@@ -331,7 +332,7 @@ public class GameScene: SKScene, SKPhysicsContactDelegate {
     private func touchDown(atPoint pos: CGPoint) {
         // Find the parent of the tapped ShapeNode
         if let tapped = self.nodes(at: pos).filter({(node) in
-            node is SKShapeNode && node.parent is TappableNode
+            node is SKSpriteNode && node.parent is TappableNode
         }).first?.parent as? TappableNode {
             tapped.pauseVelocity()
             tappedNode = tapped
@@ -387,15 +388,23 @@ PlaygroundSupport.PlaygroundPage.current.liveView = sceneView
 //#-end-hidden-code
 
 //#-editable-code
+
+// A central planet
 scene.makePlanet(x: 0, y: 0, mass: 1.49835181e16)
+
+// An example circular orbiting satellite, as described above
 scene.makeSatellite(x: 0, y: 200, dx: 100 / sqrt(2), dy: 0)
+
+// An example elliptical orbiting satellite
+scene.makeSatellite(x: -100, y: -100, dx: -54, dy: 54)
+
 
 
 // Insert code here to execute several times per second
 scene.quickUpdate = {(scene) in
     // Update the velocity label on each Satellite
     scene.satellites.forEach({(satellite) in
-        satellite.setText(String(format: "%.0f m/s", satellite.currentSpeed))
+        satellite.setText(satellite.currentSpeed >= 1 ? String(format: "%.0f m/s", satellite.currentSpeed) : "")
     })
 }
 //#-end-editable-code
