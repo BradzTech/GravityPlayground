@@ -8,6 +8,8 @@
  
  Created by Bradley Klemick in May 2020.
  
+ Designed for Swift Playgrounds 3.3 for iPad. Full code can be viewed in Xcode 11.4.1.
+ 
  ## Circular Orbit
  Your task is to create a satellite and put it in circular orbit around a central planet.
  Understanding the mathematical equations behind gravity will help you.
@@ -46,23 +48,28 @@
  * `dy`: vertical initial velocity in m/s
  * `radius` (optional): a custom radius of this planet in meters
  
- ## Bonus Tasks
+ ## More Tasks
  Once you successfully create a circular orbit, you can continue experimenting with
  gravity by adding more planets and/or satellites and modifying their properties.
  Here are some ideas:
  
- * Try purposely creating a satellite with an elliptical orbit, which represents how the
- Earth orbits the sun. This is done by setting a lower initial velocity than circular orbit,
+ * Create a satellite with an elliptical orbit, which is how the Earth orbits the sun.
+ This is done by setting a lower initial velocity than circular orbit,
  but not so low that the satellite crashes into the planet. Notice how the satellite's velocity
  fluctuates as it moves.
  
- * Try placing two planets at (-100, 0) and (100, 0); then create a satellite at (0, 200).
+ * Try placing two planets at (-100, 0) and (100, 0); then create a satellite at (0, 200). The
+ equal gravitational force from both sides has an interesting effect.
  
  * Place several satellites around one central planet with different orbits without making
- them collide. Design your own satellite system!
+ them collide. Feel free to use math or simply play around with the numbers. Design your own
+ satellite system!
+ 
+ * Write your own function to make computing various parameters easier, such as
+ velocity based on position.
  
  * You can try dragging around planets and satellites as well to see how they react,
- though doing so is less precise than through code!
+ though doing so is less precise than through code.
  */
 
 //#-hidden-code
@@ -70,6 +77,9 @@
 import PlaygroundSupport
 import SpriteKit
 
+/**
+ An SKNode with base functionality for any draggable astromical body.
+ */
 public class TappableNode: SKNode {
     // Percent to move by closer to targetPos per frame
     private static let dragSpeed: CGFloat = 0.04
@@ -99,12 +109,21 @@ public class TappableNode: SKNode {
     }
     
     /**
+     Return a new point a set percentage closer to target, if one exists
+     */
+    private func positionStep() -> CGPoint? {
+        if let targetPos = targetPos {
+            return CGPoint(x: position.x + (targetPos.x - position.x) * TappableNode.dragSpeed, y: position.y + (targetPos.y - position.y) * TappableNode.dragSpeed)
+        }
+        return nil
+    }
+    
+    /**
      Step closer to the target if this node is being dragged
      */
     public func updatePosition() {
-        if let targetPos = targetPos {
-            // Every frame, get a set percentage closer to target
-            position = CGPoint(x: position.x + (targetPos.x - position.x) * TappableNode.dragSpeed, y: position.y + (targetPos.y - position.y) * TappableNode.dragSpeed)
+        if let nextPos = positionStep() {
+            position = nextPos
         }
     }
     
@@ -113,11 +132,9 @@ public class TappableNode: SKNode {
      */
     public func resumeVelocity() {
         if let physics = physicsBody,
-            let dynamic = wasDynamic,
-            let target = targetPos {
+            let dynamic = wasDynamic {
             physics.isDynamic = dynamic
-            let releaseFactor = 40 * TappableNode.dragSpeed
-            physics.velocity = CGVector(dx: (target.x - position.x) * releaseFactor, dy: (target.y - position.y) * releaseFactor)
+            physics.velocity = velocity
             wasDynamic = nil
             targetPos = nil
         }
@@ -127,7 +144,13 @@ public class TappableNode: SKNode {
      Return the current velocity vector
      */
     public var velocity: CGVector {
-        physicsBody?.velocity ?? CGVector.zero
+        // If we're dragging, compute a velocity
+        if let nextPos = positionStep() {
+            let framesPerSecond: CGFloat = 60
+            return CGVector(dx: (nextPos.x - position.x) * framesPerSecond, dy: (nextPos.y - position.y) * framesPerSecond)
+        }
+        // We're not dragging, so just query the physicsBody
+        return physicsBody?.velocity ?? CGVector.zero
     }
     
     /**
@@ -138,6 +161,9 @@ public class TappableNode: SKNode {
     }
 }
 
+/**
+ A Planet SKNode, that includes a radial gravity field, sprite node, and static physics body.
+ */
 public class Planet: TappableNode {
     /**
      Create a Planet, a generic SKNode with some children.
@@ -181,6 +207,9 @@ public class Planet: TappableNode {
     }
 }
 
+/**
+ A Satellite SKNode, which includes a sprite node, dynamic physics body, and particle emitter.
+ */
 public class Satellite: TappableNode {
     // A reference to the label under this satellite for updating
     private var labelNode: SKLabelNode!
@@ -225,7 +254,7 @@ public class Satellite: TappableNode {
         physics.angularDamping = 0
         physics.linearDamping = 0
         physics.mass = 1
-        physics.restitution = 0.6
+        physics.restitution = 2/3
         physics.allowsRotation = false
         physics.contactTestBitMask = physics.collisionBitMask
         physicsBody = physics
@@ -240,6 +269,10 @@ public class Satellite: TappableNode {
     }
 }
 
+/**
+ The Scene, including logic to create new Planets and Satellites, and to handle their
+ collisions and touches.
+ */
 public class GameScene: SKScene, SKPhysicsContactDelegate {
     /**
      The Universal Gravitational Constant G
@@ -404,7 +437,7 @@ scene.makeSatellite(x: -100, y: -100, dx: -54, dy: 54)
 scene.quickUpdate = {(scene) in
     // Update the velocity label on each Satellite
     scene.satellites.forEach({(satellite) in
-        satellite.setText(satellite.currentSpeed >= 1 ? String(format: "%.0f m/s", satellite.currentSpeed) : "")
+        satellite.setText(String(format: "%.0f m/s", satellite.currentSpeed))
     })
 }
 //#-end-editable-code
