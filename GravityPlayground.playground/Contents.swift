@@ -1,7 +1,7 @@
 /*:
  # GravityPlayground
  
- You probably know gravity by the phenomena that keeps us pulled down to the ground.
+ You probably know gravity as the phenomena that keeps us anchored to the ground.
  But if you change your perspective, it is responsible for much more in our universe.
  In this Playground, we will deal with how gravity enables satellites to orbit around
  a planet.
@@ -12,6 +12,7 @@
  
  ## Circular Orbit
  Your task is to create a satellite and put it in circular orbit around a central planet.
+ Your satellite will look like the Moon, which is a natural satellite.
  Understanding the mathematical equations behind gravity will help you.
  
  For an object to move in a circular fashion, it must have a centripetal force
@@ -24,7 +25,7 @@
  
  Let's take our example satellite that begins at 200 meters above the planet.
  Constant G is approximately 6.674 * 10^-11. The planet's mass is precalculated
- to be 1.49835181 * 10^16 so we can deal with nice numbers. Plugging in:
+ to be 1.49835181 * 10^16 so we can deal with simple numbers. Plugging in:
  
  v = sqrt((6.674e-11) (1.498e16) / (200)) = sqrt(1000000 / (100 * 2)) = 100 / sqrt(2)
  
@@ -33,7 +34,7 @@
  A different velocity would result in an elliptical orbit, or worse, the satellite crashing
  down into the planet or flying off into space.
  
- ## Relevant functions and parameters
+ ## Relevant Functions and Parameters
  
  `scene.makePlanet`
  * `x`: horiztonal offset from screen center in meters
@@ -68,10 +69,9 @@
  * Write your own function to make computing various parameters easier, such as
  velocity based on position.
  
- * You can try dragging around planets and satellites as well to see how they react,
+ * You can try dragging around planets and satellites with your finger to see how they react,
  though doing so is less precise than through code.
  */
-
 //#-hidden-code
 
 import PlaygroundSupport
@@ -419,7 +419,6 @@ sceneView.presentScene(scene)
 PlaygroundSupport.PlaygroundPage.current.liveView = sceneView
 
 //#-end-hidden-code
-
 //#-editable-code
 
 // A central planet
